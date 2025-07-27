@@ -9,10 +9,9 @@ import datetime
 from bs4 import BeautifulSoup
 from airflow.utils.log.logging_mixin import LoggingMixin
 
-
-def get_top100_skincare() -> tuple:
+def get_top100() -> tuple:
     log = LoggingMixin().log
-    log.info("[get_top100_skincare] 시작")
+    log.info("[get_top100_{log_tag}] 시작")
     chrome_options = Options()
     chrome_options.add_argument('--headless=new') 
     chrome_options.add_argument("--no-sandbox")
@@ -22,12 +21,12 @@ def get_top100_skincare() -> tuple:
     )
 
     driver = webdriver.Chrome(
-        #service=Service(ChromeDriverManager().install()), options=chrome_options
         service=Service("/usr/local/bin/chromedriver"), options=chrome_options
     )
 
-    # 올리브영 스킨케어 랭킹 페이지 열기
-    url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000010001&pageIdx=1&rowsPerPage=8&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EC%8A%A4%ED%82%A8%EC%BC%80%EC%96%B4"
+    # 올리브영 푸드 랭킹 페이지 열기
+    url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000020002&pageIdx=1&rowsPerPage=8&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%ED%91%B8%EB%93%9C"
+    log.info(f"[get_top100_skincare] URL 오픈: {url}")
     driver.get(url)
 
     # 페이지 로딩 대기
@@ -69,7 +68,13 @@ def get_top100_skincare() -> tuple:
                 # goods_no_list에 바로 추가
                 if goods_no:
                     goods_no_list.append(goods_no)
-                
+                # 정가 (null 허용)
+                try:
+                    price_original = item.find_element(
+                        By.CSS_SELECTOR, ".prd_price .tx_org .tx_num"
+                    ).text.strip()
+                except Exception:
+                    price_original = ""
                 # 구매가격
                 try:
                     price_final = item.find_element(
@@ -78,13 +83,6 @@ def get_top100_skincare() -> tuple:
                 except Exception as e:
                     log.warning(f"[get_top100_skincare] 구매가격 정보 파싱 실패: {e}")
                     price_final = ""
-                # 정가 (null 허용)
-                try:
-                    price_original = item.find_element(
-                        By.CSS_SELECTOR, ".prd_price .tx_org .tx_num"
-                    ).text.strip()
-                except Exception:
-                    price_original = price_final
                 # 기타 프로모션 정보(null 허용)
                 try:
                     flag_spans = item.find_elements(By.CSS_SELECTOR, ".prd_flag .icon_flag")
@@ -120,6 +118,8 @@ def get_top100_skincare() -> tuple:
             except Exception:
                 is_soldout = False
 
+
+
             data.append(
                 {
                     "rank": rank_val,
@@ -130,8 +130,7 @@ def get_top100_skincare() -> tuple:
                     "originalPrice": price_original,
                     "flagList": flag_list,  # 리스트로 저장
                     "createdAt": collected_at,
-                    "isSoldout": bool(is_soldout),
-                    "category": "스킨케어"
+                    "isSoldout": bool(is_soldout)
                 }
             )
             log.info(f"[get_top100_skincare] {rank_val}위 상품: {brand} {name} (goods_no: {goods_no})")
@@ -150,8 +149,8 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
     log = LoggingMixin().log
     url = f"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo={goods_no}"
     log.info(f"[get_product_detail_info] 시작: goods_no={goods_no}")
-    #sb.uc_open_with_reconnect(url, reconnect_time=5)  # 속도 더 느림
-    sb.open(url)
+    sb.uc_open_with_reconnect(url, reconnect_time=5)
+    log.info(f"[get_product_detail_info] URL 오픈: {url}")
     time.sleep(1)
     html = sb.driver.page_source
     soup = BeautifulSoup(html, 'html.parser')
@@ -176,7 +175,6 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
     pctOf5 = pctOf4 = pctOf3 = pctOf2 = pctOf1 = None
 
     # 리뷰가 1건 이상 있을 때만 리뷰탭 클릭 및 분포 수집
-    total_comment = ""
     if total_review > 0:
         try:
             sb.click("a.goods_reputation")
@@ -201,10 +199,11 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
             except Exception:
                 total_comment = ""
                 log.warning("[get_product_detail_info] 대표 코멘트 추출 실패")
+                
         except Exception as e:
-            log.warning(f"[get_product_detail_info] 리뷰 정보 수집 실패: {e}")
-    else:
-        log.warning("[get_product_detail_info] 리뷰 정보 없음: 리뷰 수가 0건 입니다.")
+            log.warning(f"[get_product_detail_info] 리뷰 정보 없음: {e}")
+
+
 
     # === 상세스펙(구매정보) 추출 ===
     # 구매정보 탭 클릭
@@ -228,7 +227,7 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
                     dt_text = dt.text.strip()
                     dd_text = dd.text.strip()
                     if title in dt_text:
-                        log.info(f"[get_product_detail_info] {title} 추출 성공!")
+                        log.info(f"[get_product_detail_info] {title} 추출: {dd_text}")
                         return dd_text
         except Exception as e:
             log.warning(f"[get_product_detail_info] 상세 정보 파싱 실패 ({title}): {e}")
@@ -239,11 +238,7 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
     try:
         poll_div = soup.select_one("div.poll_all")
         if poll_div:
-            # 우선 dl.poll_type2.type3을 찾고, 없으면 dl.poll_type2만 찾기
-            dl_tags = poll_div.select("dl.poll_type2.type3")
-            if not dl_tags:
-                dl_tags = poll_div.select("dl.poll_type2")
-            for dl in dl_tags:
+            for dl in poll_div.select("dl.poll_type2.type3"):
                 type_name = dl.select_one("dt span")
                 type_name = type_name.text.strip() if type_name else ""
                 for li in dl.select("dd ul.list > li"):
@@ -283,3 +278,19 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
         **detail_spec,
 
     }
+
+
+##### 실행 코드 #####
+# data, goods_no_list = get_top100_skincare()
+
+# with SB(uc=True, test=True) as sb:
+#     detail_list = []
+#     for goods_no in goods_no_list:
+#         detail = get_product_detail_info(sb, goods_no)
+#         detail_list.append(detail)
+
+# df = pd.DataFrame(data)
+# detail_df = pd.DataFrame(detail_list)
+# result_df = pd.concat([df.reset_index(drop=True), detail_df.reset_index(drop=True)], axis=1)
+
+# result_df.to_json('skincare_result.json', orient='records', force_ascii=False, indent=2)
