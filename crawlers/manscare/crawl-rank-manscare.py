@@ -1,74 +1,101 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from seleniumbase import SB
 from bs4 import BeautifulSoup
 from time import sleep
+import datetime
 import time
-
+import pprint
 # 상품 상세 주소 리스트화
 def crawl_product_info() :
-    url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000010007&pageIdx=1&rowsPerPage=8&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EB%A7%A8%EC%A6%88%EC%BC%80%EC%96%B4"
-
     options = Options()
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("user-agent=Mozilla/5.0")
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver = webdriver.Chrome(service=Service(), options=options)
+
+    url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000010004&pageIdx=1&rowsPerPage=8&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%ED%97%A4%EC%96%B4%EC%BC%80%EC%96%B4"
     driver.get(url)
+    time.sleep(3)  # 로딩 대기
 
-    time.sleep(2)
-    li_elements = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
-    product_links = []  # 상품정보
-    # 1번 페이지
-    print("1번 페이지 갯수 : ",len(li_elements))
-    for li in li_elements:
-        a_tag = li.find_element(By.CSS_SELECTOR, 'a')
-        href = a_tag.get_attribute('href')
-        if href:
-            product_links.append(href)
-    # 2번 페이지
-    try:
-        page_2_btn = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, 'a[data-page-no="2"]'))
-        )
-        driver.execute_script("arguments[0].click();", page_2_btn)  # JS 기반 클릭
-        print("✅ 2번 페이지 클릭 완료")
-    except Exception as e:
-        print("❌ 클릭 실패:", e)
-    # # 2~3번 페이지
-    # for page_no in range(2, 4):
-    #     print(f"\n✅ {page_no}페이지 클릭 시도")
-    #
-    #     # 페이지 버튼 클릭 (JavaScript 클릭)
-    #     try:
-    #         page_btn = driver.find_element(By.CSS_SELECTOR, f'a[data-page-no="{page_no}"]')
-    #         driver.execute_script("arguments[0].click();", page_btn)
-    #     except:
-    #         print(f"❌ {page_no}페이지 버튼 클릭 실패")
-    #         continue
-    #
-    #     # 페이지 전용 상품이 등장할 때까지 대기 (간단한 방식)
-    #     time.sleep(2)
-    #
-    #     # 상품 li들 다시 추출
-    #     product_items = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
-    #
-    #     for item in product_items:
-    #         a_tag = item.find_element(By.TAG_NAME, 'a')
-    #         href = a_tag.get_attribute("href")
-    #         product_links.append(href)
-
-    # 창을 닫지 않고 대기
-    input("👉 Enter 키를 누르면 창이 닫힙니다...")
-
-    # 필요시 수동 종료
+    soup = BeautifulSoup(driver.page_source, "html.parser")
     driver.quit()
-    return product_links
+
+    collected_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data = []
+
+    product_blocks = soup.select("div.prd_name")
+    start_num = 0
+    for prd_name in product_blocks:
+        # 상품 이름
+        try:
+            name = prd_name.select_one("a").text.strip()
+            print(name)
+        except:
+            name = ""
+            print("이름 오류")
+        # 링크
+        try:
+            link = prd_name.select_one("a")["href"]
+        except:
+            link = ""
+
+        # 브랜드명
+        try:
+            brand = prd_name.select_one("span.tx_brand").text.strip()
+        except:
+            brand = ""
+        parent = prd_name.find_parent()  # 가격 정보가 같은 부모 하위에 있을 가능성 높음
+        # 할인가
+        try:
+            price_final = parent.select_one("span.tx_cur span.tx_num").text.strip().replace(",", "")
+        except:
+            price_final = ""
+        # 정가
+        try:
+            price_original = parent.select_one("span.tx_org span.tx_num").text.strip().replace(",", "")
+        except:
+            price_original = ""
+        # 혜택 정보
+        try:
+            flag_spans = parent.select("p.prd_flag span.icon_flag")
+            flag_list = [span.text.strip() for span in flag_spans if span.text.strip()]
+            flag_str = ",".join(flag_list) if flag_list else ""
+        except:
+            flag_str = ""
+        pb_brands = [
+            "바이오힐 보",
+            "브링그린",
+            "웨이크메이크",
+            "컬러그램",
+            "필리밀리",
+            "아이디얼포맨",
+            "라운드어라운드",
+            "식물나라",
+            "케어플러스",
+            "탄탄",
+            "딜라이트 프로젝트",
+        ]
+        # Pb 상품 여부
+        is_pb = 1 if brand in pb_brands else 0
+        start_num = start_num + 1
+        data.append({
+            "rank": start_num,
+            "brandName": brand,
+            "isPB": is_pb,
+            "goodsName": name,
+            "salePrice": price_final,
+            "originalPrice": price_original,
+            "flagList": flag_str,
+            "isSoldout": 1,
+            "createdAt": collected_at,
+            "link": link
+        })
+
+    return data
 
 #상품 상세 정보 크롤링
 def crawl_product_detail(list) :
@@ -178,6 +205,7 @@ def crawl_product_detail(list) :
                 "product": product_name,  # 상품이름
                 "discountPrice": discount_price,  # 할인가
                 "originPrice": origin_price,  # 정가
+                "category": "manscare",
                 "isPB": 1,  # Pb여부
                 "flag": flags,  # 혜택
                 "totalcoment": totalComment,
@@ -199,5 +227,4 @@ def crawl_product_detail(list) :
 def jsonSave():
     return
 product_links = crawl_product_info()
-print(len(product_links))
-# crawl_product_detail(product_links)
+crawl_product_detail(product_links)

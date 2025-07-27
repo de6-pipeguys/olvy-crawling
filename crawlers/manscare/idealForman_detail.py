@@ -81,6 +81,7 @@ def get_brand(brand_code) :
                     "brandName": brand,
                     "isPB": is_pb,
                     "goodsName": name,
+                    "category" : "manscare",
                     "salePrice": price_final,
                     "originalPrice": price_original,
                     "flagList": flag_str,
@@ -99,7 +100,7 @@ def crawl_product_detail(data) :
         goodsName = item['goodsName']
         url = item['link']
         review_detail = []
-        with SB(uc=True, test=True) as sb:
+        with SB(uc=True, test=True, headless=True) as sb:
             sb.uc_open_with_reconnect(url, reconnect_time=60)
 
             html = sb.driver.page_source
@@ -192,16 +193,21 @@ def crawl_product_detail(data) :
             pprint(item)
             print("===============================================================")
     return
-def save_json(data,time):
+def save_s3(data,time):
     file_name = f"{time}_PB_아이디얼포맨.json"
     folder_path = "JSON"
+    os.makedirs(folder_path, exist_ok=True)
     full_path = os.path.join(folder_path, file_name)
     with open(full_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"✅ 저장 완료: {full_path}")
+
     return
 
-collected_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+collected_at = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+print("시작시간 : ",  collected_at)
 data = get_brand("A001643")
 crawl_product_detail(data)
 save_json(data ,collected_at)
+collected_at = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+print("종료시간 : ",  collected_at)

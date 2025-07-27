@@ -1,0 +1,24 @@
+crawl-rank-manscare.py:230:SB
+--------------------------------------------------------------------
+Last Page: chrome://new-tab-page/
+ Duration: 0.00s
+  Browser: Chrome 138.0.7204.158
+   Driver: chromedriver 138.0.7204.157
+Timestamp: 1752983350  (Unix Timestamp)
+     Date: Sunday, 20 July 2025
+     Time: 12:49:10 PM  (대한민국 표준시, UTC+09:00)
+--------------------------------------------------------------------
+Traceback:
+  Traceback (most recent call last):
+  File "C:\lastproject\olvy-insight\crawlers\manscare\crawl-rank-manscare.py", line 106, in crawl_product_detail
+    sb.uc_open_with_reconnect(url, reconnect_time=60)
+  File "C:\python\Lib\site-packages\seleniumbase\core\browser_launcher.py", line 5602, in <lambda>
+    lambda *args, **kwargs: uc_open_with_reconnect(
+                            ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\Lib\site-packages\seleniumbase\core\browser_launcher.py", line 537, in uc_open_with_reconnect
+    url = shared_utils.fix_url_as_needed(url)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\Lib\site-packages\seleniumbase\fixtures\shared_utils.py", line 81, in fix_url_as_needed
+    elif url.startswith("//"):
+         ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'startswith'
