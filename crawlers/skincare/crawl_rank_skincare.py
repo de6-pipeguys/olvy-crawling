@@ -69,13 +69,7 @@ def get_top100_skincare() -> tuple:
                 # goods_no_list에 바로 추가
                 if goods_no:
                     goods_no_list.append(goods_no)
-                # 정가 (null 허용)
-                try:
-                    price_original = item.find_element(
-                        By.CSS_SELECTOR, ".prd_price .tx_org .tx_num"
-                    ).text.strip()
-                except Exception:
-                    price_original = ""
+                
                 # 구매가격
                 try:
                     price_final = item.find_element(
@@ -84,6 +78,13 @@ def get_top100_skincare() -> tuple:
                 except Exception as e:
                     log.warning(f"[get_top100_skincare] 구매가격 정보 파싱 실패: {e}")
                     price_final = ""
+                # 정가 (null 허용)
+                try:
+                    price_original = item.find_element(
+                        By.CSS_SELECTOR, ".prd_price .tx_org .tx_num"
+                    ).text.strip()
+                except Exception:
+                    price_original = price_final
                 # 기타 프로모션 정보(null 허용)
                 try:
                     flag_spans = item.find_elements(By.CSS_SELECTOR, ".prd_flag .icon_flag")
@@ -119,8 +120,6 @@ def get_top100_skincare() -> tuple:
             except Exception:
                 is_soldout = False
 
-
-
             data.append(
                 {
                     "rank": rank_val,
@@ -131,7 +130,8 @@ def get_top100_skincare() -> tuple:
                     "originalPrice": price_original,
                     "flagList": flag_list,  # 리스트로 저장
                     "createdAt": collected_at,
-                    "isSoldout": bool(is_soldout)
+                    "isSoldout": bool(is_soldout),
+                    "category": "스킨케어"
                 }
             )
             log.info(f"[get_top100_skincare] {rank_val}위 상품: {brand} {name} (goods_no: {goods_no})")
@@ -239,7 +239,11 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
     try:
         poll_div = soup.select_one("div.poll_all")
         if poll_div:
-            for dl in poll_div.select("dl.poll_type2.type3"):
+            # 우선 dl.poll_type2.type3을 찾고, 없으면 dl.poll_type2만 찾기
+            dl_tags = poll_div.select("dl.poll_type2.type3")
+            if not dl_tags:
+                dl_tags = poll_div.select("dl.poll_type2")
+            for dl in dl_tags:
                 type_name = dl.select_one("dt span")
                 type_name = type_name.text.strip() if type_name else ""
                 for li in dl.select("dd ul.list > li"):
@@ -279,20 +283,3 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
         **detail_spec,
 
     }
-
-
-##### 실행 코드 #####
-# data, goods_no_list = get_top100_skincare()
-
-# with SB(uc=True, test=True) as sb:
-#     detail_list = []
-#     for goods_no in goods_no_list:
-#         detail = get_product_detail_info(sb, goods_no)
-#         detail_list.append(detail)
-
-# df = pd.DataFrame(data)
-# detail_df = pd.DataFrame(detail_list)
-# result_df = pd.concat([df.reset_index(drop=True), detail_df.reset_index(drop=True)], axis=1)
-
-# result_df.to_json('skincare_result.json', orient='records', force_ascii=False, indent=2)
-
